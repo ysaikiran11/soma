@@ -12,9 +12,15 @@ static double year_bbox_y = 0.0;
 static double year_bbox_width = 0.0;
 static double year_bbox_height = 0.0;
 
+static double masa_bbox_x = 0.0;
+static double masa_bbox_y = 0.0;
+static double masa_bbox_width = 0.0;
+static double masa_bbox_height = 0.0;
+
 int selected_phase = -1;  // -1 means no selection
 int hovered_phase = -1;
 gboolean show_adjacent_years = FALSE;
+gboolean show_adjacent_masa = FALSE;
 
 // Helper: Draw text with a semi-transparent background.
 void draw_text_with_bg(cairo_t *cr, const char *text, double x, double y,
@@ -59,6 +65,27 @@ void show_60_year_calendar()
         gtk_grid_attach(GTK_GRID(grid), label, col, row, 1, 1);
     }
     gtk_widget_show_all(cal_win);
+}
+
+void masalu()
+{
+    GtkWidget *cal_masa = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(cal_masa), "masalu");
+    gtk_window_set_default_size(GTK_WINDOW(cal_masa), 200, 200);
+    g_signal_connect(cal_masa, "destroy", G_CALLBACK(gtk_widget_destroy), NULL);
+
+    // Create a grid to arrange the masa labels.
+    GtkWidget *grid = gtk_grid_new();
+    gtk_container_add(GTK_CONTAINER(cal_masa), grid);
+
+    int cols = 4; // 4 columns (4 x 3 = 12 cells)
+    for (int i = 0; i < 12; i++) {
+        GtkWidget *label = gtk_label_new(masam[i]);
+        int col = i % cols;
+        int row = i / cols;
+        gtk_grid_attach(GTK_GRID(grid), label, col, row, 1, 1);
+    }
+    gtk_widget_show_all(cal_masa);
 }
 
 // on_draw: Renders the moon phases in a circle, draws the central year text,
@@ -110,7 +137,7 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
     }
 
     // Draw the central year text.
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);  // White text
+    cairo_set_source_rgb(cr, 1.0, 1.0, 0.6);  // White text
     cairo_set_font_size(cr, 36);
     cairo_text_extents_t extents;
     cairo_text_extents(cr, prasthutha_varsham, &extents);
@@ -144,7 +171,7 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
             double alpha = base_alpha - (i * alpha_decrement);
             if (alpha < 0) alpha = 0;
             cairo_set_font_size(cr, font_size);
-            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha);
+            cairo_set_source_rgba(cr, 1.0, 1.0, 0.8, alpha);
             cairo_text_extents_t ext;
             cairo_text_extents(cr, varsham[prasthutha_varsha_soochika+i], &ext);
             double x = center_x - ext.width / 2;
@@ -162,7 +189,7 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
             double alpha = base_alpha - (i * alpha_decrement);
             if (alpha < 0) alpha = 0;
             cairo_set_font_size(cr, font_size);
-            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha);
+            cairo_set_source_rgba(cr, 1.0, 1.0, 0.4, alpha);
             cairo_text_extents_t ext;
             cairo_text_extents(cr, varsham[prasthutha_varsha_soochika-i], &ext);
             double x = center_x - ext.width / 2;
@@ -173,6 +200,68 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
         }
     }
 
+    // show masalu
+    cairo_set_source_rgb(cr, 1.0, 1.0, 0.8);  // White text
+    cairo_set_font_size(cr, 24);
+    cairo_text_extents_t extents_m;
+    cairo_text_extents(cr, prasthutha_masam, &extents_m);
+
+    text_x = center_x - extents_m.width/2;
+    text_y = center_y + extents_m.height/2 + 40;
+
+    // Update bounding box for masalu (used for hover, scroll, and click detection).
+    masa_bbox_x = text_x;
+    masa_bbox_y = center_y - extents_m.height/2 + 40;
+    masa_bbox_width = extents_m.width;
+    masa_bbox_height = extents_m.height;
+
+    cairo_move_to(cr, text_x, text_y);
+    cairo_show_text(cr, prasthutha_masam);
+    cairo_new_path(cr);
+
+    // Only show additional masalu if hovering over the masa text.
+    if (show_adjacent_masa) {
+        int num_years = 4; // Number of previous/next masalu to display
+        // Base settings for the central masam.
+        double base_font_size = 20;
+        double base_alpha = 1.0;
+        double font_decrement = 2;      // How much the font size reduces per step
+        double alpha_decrement = 0.20;    // How much the alpha reduces per step
+        double vertical_offset = 40;      // Vertical spacing between years
+
+        // Draw next masalu above the central masa.
+        for (int i = 1; i <= num_years; i++) {
+            double font_size = base_font_size - (i * font_decrement);
+            double alpha = base_alpha - (i * alpha_decrement);
+            if (alpha < 0) alpha = 0;
+            cairo_set_font_size(cr, font_size);
+            cairo_set_source_rgba(cr, 1.0, 1.0, 0.8, alpha);
+            cairo_text_extents_t ext;
+            cairo_text_extents(cr, masam[prasthutha_masa_soochika+i], &ext);
+            double x = center_x - ext.width / 2;
+            double y = center_y - vertical_offset * i + 40;  // Move up for next masalu
+            cairo_move_to(cr, x, y);
+            cairo_show_text(cr, masam[prasthutha_masa_soochika+i]);
+            cairo_new_path(cr);
+        }
+
+        vertical_offset = 40;      // Vertical spacing between masalu
+        // Draw previous masalu below the central masa.
+        for (int i = 1; i <= num_years; i++) {
+            double font_size = base_font_size - (i * font_decrement);
+            double alpha = base_alpha - (i * alpha_decrement);
+            if (alpha < 0) alpha = 0;
+            cairo_set_font_size(cr, font_size);
+            cairo_set_source_rgba(cr, 1.0, 1.0, 0.4, alpha);
+            cairo_text_extents_t ext;
+            cairo_text_extents(cr, masam[prasthutha_masa_soochika-i], &ext);
+            double x = center_x - ext.width / 2;
+            double y = center_y + vertical_offset * i + 20 + 40;  // Move down for previous masalu
+            cairo_move_to(cr, x, y);
+            cairo_show_text(cr, masam[prasthutha_masa_soochika-i]);
+            cairo_new_path(cr);
+        }
+    }
 
     return FALSE;
 }
@@ -207,6 +296,13 @@ static gboolean on_mouse_click(GtkWidget *widget, GdkEventButton *event, gpointe
         show_60_year_calendar();
         return TRUE;
     }
+
+    if (event->x >= masa_bbox_x && event->x <= (masa_bbox_x + masa_bbox_width) &&
+        event->y >= masa_bbox_y && event->y <= (masa_bbox_y + masa_bbox_height)) {
+        masalu();
+        return TRUE;
+    }
+
     return TRUE;
 }
 
@@ -252,6 +348,16 @@ static gboolean on_mouse_motion(GtkWidget *widget, GdkEventMotion *event, gpoint
         show_adjacent_years = FALSE;
         gtk_widget_queue_draw(widget);
     }
+
+    gboolean masa_hovered = (event->x >= masa_bbox_x && event->x <= (masa_bbox_x + masa_bbox_width) &&
+                              event->y >= masa_bbox_y && event->y <= (masa_bbox_y + masa_bbox_height));
+    if (masa_hovered && !show_adjacent_masa) {
+        show_adjacent_masa = TRUE;
+        gtk_widget_queue_draw(widget);
+    } else if (!masa_hovered && show_adjacent_masa) {
+        show_adjacent_masa = FALSE;
+        gtk_widget_queue_draw(widget);
+    }
     return TRUE;
 }
 
@@ -268,6 +374,16 @@ static gboolean on_scroll_event(GtkWidget *widget, GdkEventScroll *event, gpoint
             move_year_up();     //move the current year up
         else if (event->direction == GDK_SCROLL_DOWN)
             move_year_down();
+        gtk_widget_queue_draw(widget);
+        return TRUE;
+    }
+    if (event->x >= masa_bbox_x && event->x <= (masa_bbox_x + masa_bbox_width) &&
+        event->y >= masa_bbox_y && event->y <= (masa_bbox_y + masa_bbox_height))
+    {
+        if (event->direction == GDK_SCROLL_UP)
+            move_masa_up();     //move the current year up
+        else if (event->direction == GDK_SCROLL_DOWN)
+            move_masa_down();
         gtk_widget_queue_draw(widget);
         return TRUE;
     }
@@ -306,6 +422,7 @@ int main(int argc, char **argv)
     load_moon_phase_images();   //load images
 
     get_prasthutha_varsham();
+    get_prasthutha_masam();
 
     GtkWidget *window = create_main_window();
     gtk_widget_show_all(window);
